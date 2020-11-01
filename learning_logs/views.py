@@ -1,5 +1,5 @@
 from django.shortcuts import render
-from django.http import HttpResponseRedirect
+from django.http import HttpResponseRedirect, Http404
 from django.urls import reverse
 from django.contrib.auth.decorators import login_required
 
@@ -22,6 +22,9 @@ def topics(request):
 @login_required
 def topic(request, topic_id):
     topic = Topic.objects.get(id=topic_id)
+    # Checks for appropriate user access
+    check_topic_owner(topic.owner, request.user)
+
     entries = topic.entry_set.order_by('-date_added')
     context = {'topic': topic, 'entries': entries}
 
@@ -36,7 +39,9 @@ def new_topic(request):
     # POST data submitted, process data
         form = TopicForm(request.POST)
         if form.is_valid():
-            form.save()
+            new_topic = form.save(commit=False)
+            new_topic.owner = request.user
+            new_topic.save()
             return HttpResponseRedirect(reverse("learning_logs:topics"))
     context = {"form":form}
     return render(request, "learning_logs/new_topic.html", context)
@@ -55,6 +60,7 @@ def new_entry(request, topic_id):
         if form.is_valid():
             new_entry = form.save(commit=False)
             new_entry.topic = topic
+            check_topic_owner(new_entry.topic.owner, request.user)
             new_entry.save()
             return HttpResponseRedirect(reverse("learning_logs:topic", args=[topic_id]))
     context = {"topic": topic, "form": form}
@@ -64,6 +70,9 @@ def new_entry(request, topic_id):
 def edit_entry(request, entry_id):
     entry = Entry.objects.get(id=entry_id)
     topic = entry.topic
+
+    # Protects user's entries from inappropriate access
+    check_topic_owner(topic.owner, request.user)
 
     if request.method != "POST":
         form = EntryForm(instance=entry)
@@ -77,3 +86,7 @@ def edit_entry(request, entry_id):
         "topic": topic, "entry": entry, "form": form
     }
     return render(request, "learning_logs/edit_entry.html", context)
+
+def check_topic_owner(owner, user):
+    if owner != user:
+        raise Http404
