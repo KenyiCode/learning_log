@@ -155,3 +155,5 @@ if os.getcwd() == '/app':
     STATICFILES_DIRS = (
         os.path.join(BASE_DIR, 'learning_log/static'),
     )
+
+    django_heroku.settings(locals())
